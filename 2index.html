@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>V4 前瞻防守與嚴格雪球排程系統</title>
+  <style>
+    :root {
+      --bg: #0b1329;
+      --card-bg: #1e293b;
+      --primary: #38bdf8;
+      --accent: #818cf8;
+      --danger: #f87171;
+      --warning: #fbbf24;
+      --success: #34d399;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); margin: 0; padding: 12px; padding-bottom: 60px; }
+    h1 { font-size: 18px; margin: 0 0 4px 0; color: #fff; }
+    p.sub { font-size: 12px; color: var(--muted); margin: 0 0 14px 0; }
+
+    .card { background: var(--card-bg); border-radius: 14px; padding: 14px; margin-bottom: 14px; border: 1px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.25); }
+    .card h2 { font-size: 14px; margin: 0 0 12px 0; display: flex; justify-content: space-between; align-items: center; color: #fff; }
+    
+    .account-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+    .acc-item { padding: 10px 12px; background: #0f172a; border-radius: 0 10px 10px 0; border: 1px solid var(--border); border-left: 4px solid var(--primary); }
+    .acc-item.ctbc { border-left-color: #38bdf8; }
+    .acc-item.fubon { border-left-color: #818cf8; }
+    .acc-item.post { border-left-color: #34d399; }
+    .acc-title { font-size: 13px; font-weight: bold; margin-bottom: 2px; }
+    .acc-desc { font-size: 11px; color: var(--muted); margin-bottom: 4px; line-height: 1.35; }
+    .acc-val { font-size: 18px; font-weight: 800; }
+
+    .form-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+    input { background: #0f172a; border: 1px solid var(--border); border-radius: 8px; color: #fff; padding: 8px; font-size: 12px; flex: 1; }
+    input:focus { border-color: var(--primary); outline: none; }
+    .btn { background: var(--primary); color: #0b1329; border: none; border-radius: 8px; padding: 8px 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .btn.danger { background: var(--danger); color: #fff; }
+    .btn.sm { padding: 4px 8px; font-size: 11px; }
+
+    .table-box { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; text-align: left; background: #0f172a; }
+    th, td { padding: 9px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    th { color: var(--muted); font-weight: 600; background: #1e293b; }
+    
+    .badge { padding: 3px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+    .badge.done { background: rgba(52, 211, 153, 0.15); color: #34d399; }
+    .badge.wait { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+    .badge.pause { background: rgba(248, 113, 113, 0.15); color: #f87171; }
+    .badge.bottleneck { background: rgba(244, 63, 94, 0.2); color: #f43f5e; border: 1px solid #f43f5e; }
+    
+    .alert-banner { padding: 12px; border-radius: 10px; font-size: 12px; line-height: 1.5; margin-bottom: 14px; }
+    .alert-banner.safe { background: rgba(52, 211, 153, 0.1); border: 1px solid #059669; color: #6ee7b7; }
+    .alert-banner.warn { background: rgba(251, 191, 36, 0.1); border: 1px solid #d97706; color: #fde68a; }
+    .alert-banner.danger { background: rgba(248, 113, 113, 0.15); border: 1px solid #dc2626; color: #fca5a5; }
+
+    .stat-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .stat-pill { padding: 5px 10px; background: #0f172a; border-radius: 6px; font-size: 11px; color: var(--muted); border: 1px solid var(--border); }
+    .stat-pill strong { color: #fff; }
+  </style>
+</head>
+<body>
+
+  <h1>🛡️ 智慧前瞻防守與嚴格雪球排程 V4</h1>
+  <p class="sub">雙軌前瞻運算：嚴格分離「安全最大還款額」與「實際雪球還款額」，守護 15k 防禦線。</p>
+
+  <!-- 瓶頸診斷條 -->
+  <div id="alertBox" class="alert-banner safe">前瞻防守引擎計算中...</div>
+
+  <!-- 核心防禦參數 -->
+  <div class="card">
+    <h2>⚙️ 核心防守底線設定</h2>
+    <div class="form-row">
+      <div style="flex:1;">
+        <label style="font-size:11px; color:var(--muted); display:block; margin-bottom:4px;">目前可用資金 (NT$)</label>
+        <input type="number" id="initSavings" value="0" onchange="updateConfig()">
+      </div>
+      <div style="flex:1;">
+        <label style="font-size:11px; color:var(--muted); display:block; margin-bottom:4px;">中信永不跌破底線 (NT$)</label>
+        <input type="number" id="safeBaseline" value="15000" onchange="updateConfig()">
+      </div>
+    </div>
+  </div>
+
+  <!-- 三帳戶本月調配指令 -->
+  <div class="card">
+    <h2>
+      <span>🏦 首月（2026/10）三帳戶精準調配建議</span>
+      <span style="font-size:10px; color:var(--primary);" id="safetyCapBadge">安全上限計算中</span>
+    </h2>
+    <div class="account-grid">
+      <div class="acc-item post">
+        <div class="acc-title">1. 郵局帳戶（生活費煞車）</div>
+        <div class="acc-desc">定額提撥，作為每日餐飲生活專用款，嚴禁透支</div>
+        <div class="acc-val" style="color: #34d399;" id="postSuggest">NT$ 15,000</div>
+      </div>
+      <div class="acc-item fubon">
+        <div class="acc-title">2. 富邦帳戶（扣繳中樞＋排程還款）</div>
+        <div class="acc-desc" id="fubonDetail">固定代扣 + 本月排程實際還款總額</div>
+        <div class="acc-val" style="color: #818cf8;" id="fubonSuggest">NT$ 0</div>
+      </div>
+      <div class="acc-item ctbc">
+        <div class="acc-title">3. 中信帳戶（防禦主水庫）</div>
+        <div class="acc-desc" id="ctbcDetail">已鎖死留存：15k 底線 + 未來 4 個月過冬赤字備付金</div>
+        <div class="acc-val" style="color: #38bdf8;" id="ctbcSuggest">NT$ 0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 嚴格順位雪球清單 -->
+  <div class="card">
+    <h2>
+      <span>📑 債務雪球清償排程（依嚴格優先順序）</span>
+      <span style="font-size:11px; color:var(--muted);">結清後額度自動釋放</span>
+    </h2>
+
+    <div class="table-box">
+      <table>
+        <thead>
+          <tr>
+            <th>順位</th>
+            <th>債務名稱</th>
+            <th>原始總額</th>
+            <th>最低應繳(minPay)</th>
+            <th>首月實際清償</th>
+            <th>預計結清月份</th>
+            <th>狀態備註</th>
+          </tr>
+        </thead>
+        <tbody id="debtTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 全期動態現金流 -->
+  <div class="card">
+    <h2>
+      <span>📈 全期前瞻動態現金流 (單位: NT$)</span>
+      <button class="btn sm" onclick="addTimelineMonth()">+ 增加月份</button>
+    </h2>
+    <div class="stat-bar">
+      <span class="stat-pill">總負債初始: <strong id="initialTotalDebtDisplay">NT$ 0</strong></span>
+      <span class="stat-pill">全期償清總額: <strong id="paidTotalDisplay">NT$ 0</strong></span>
+      <span class="stat-pill">低谷期真實總赤字: <strong id="troughDeficitDisplay">NT$ 0</strong></span>
+    </div>
+    <div class="table-box">
+      <table>
+        <thead>
+          <tr>
+            <th>月份</th>
+            <th>實質進帳</th>
+            <th>固定開銷</th>
+            <th>安全最大還款</th>
+            <th>本月實際還款</th>
+            <th>期末現金水位</th>
+            <th>當月底剩餘負債</th>
+            <th>排程狀態</th>
+          </tr>
+        </thead>
+        <tbody id="timelineTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    let config = JSON.parse(localStorage.getItem('v4_config_prod')) || {
+      initSavings: 0,
+      safeBaseline: 15000
+    };
+
+    // 嚴格順位：卡費 (Rank 1) 最優先，小額依序結清，中長期放後段
+    let debts = JSON.parse(localStorage.getItem('v4_debts_prod')) || [
+      { rank: 1, name: "卡費", total: 10000, minPay: 10000 },
+      { rank: 2, name: "地", total: 2000, minPay: 0 },
+      { rank: 3, name: "Lung", total: 4090, minPay: 0 },
+      { rank: 4, name: "郎", total: 5000, minPay: 0 },
+      { rank: 5, name: "ㄐㄧㄝ", total: 5000, minPay: 0 },
+      { rank: 6, name: "妞", total: 10500, minPay: 0 },
+      { rank: 7, name: "ㄓˋ", total: 6000, minPay: 2000 },
+      { rank: 8, name: "益", total: 40000, minPay: 4000 },
+      { rank: 9, name: "匡", total: 40000, minPay: 0 }
+    ];
+
+    let timeline = JSON.parse(localStorage.getItem('v4_timeline_prod')) || [
+      { month: "2026/10", income: 124000, fixed: 16900 },
+      { month: "2026/11", income: 4000, fixed: 16900 },
+      { month: "2026/12", income: 4000, fixed: 28900 },
+      { month: "2027/01", income: 9000, fixed: 16900 },
+      { month: "2027/02", income: 10000, fixed: 16900 },
+      { month: "2027/03", income: 124000, fixed: 16900 }
+    ];
+
+    function saveData() {
+      localStorage.setItem('v4_config_prod', JSON.stringify(config));
+      localStorage.setItem('v4_debts_prod', JSON.stringify(debts));
+      localStorage.setItem('v4_timeline_prod', JSON.stringify(timeline));
+    }
+
+    function updateConfig() {
+      config.initSavings = parseFloat(document.getElementById('initSavings').value) || 0;
+      config.safeBaseline = parseFloat(document.getElementById('safeBaseline').value) || 15000;
+      saveData();
+      runEngineV4();
+    }
+
+    function updateDebt(rank, field, val) {
+      const d = debts.find(x => x.rank === rank);
+      if (d) {
+        d[field] = parseFloat(val) || 0;
+        saveData();
+        runEngineV4();
+      }
+    }
+
+    function updateTimeline(idx, field, val) {
+      timeline[idx][field] = parseFloat(val) || 0;
+      saveData();
+      runEngineV4();
+    }
+
+    function addTimelineMonth() {
+      const last = timeline[timeline.length - 1];
+      let nextM = "Next";
+      if (last) {
+        const parts = last.month.split('/');
+        let y = parseInt(parts[0]);
+        let m = parseInt(parts[1]) + 1;
+        if (m > 12) { y++; m = 1; }
+        nextM = `${y}/${m < 10 ? '0' + m : m}`;
+      }
+      timeline.push({ month: nextM, income: 0, fixed: 16900 });
+      saveData();
+      runEngineV4();
+    }
+
+    // --- V4 雙軌前瞻逆推與嚴格雪球演算法 ---
+    function runEngineV4() {
+      document.getElementById('initSavings').value = config.initSavings;
+      document.getElementById('safeBaseline').value = config.safeBaseline;
+
+      const n = timeline.length;
+      let simDebts = debts.map(d => ({ ...d, currentBal: d.total, clearedMonth: null }));
+      
+      let safeCapArray = new Array(n).fill(0);
+      let actualPaidArray = new Array(n).fill(0);
+      let remainingDebtSnapshots = new Array(n).fill(0);
+      let cashSnapshots = new Array(n).fill(0);
+      let monthStatusArray = new Array(n).fill("");
+
+      let runningCash = config.initSavings;
+      let minOverallCash = 9999999;
+      let bottleneckMonth = "";
+      let totalTroughDeficitWithMinPay = 0;
+      let hasSevereDeficit = false;
+
+      // 逐月模擬
+      for (let t = 0; t < n; t++) {
+        const m = timeline[t];
+        const cashBefore = runningCash + m.income - m.fixed;
+
+        // 1. 本期所有未結清債務的 minPay 需求總計
+        let mandatoryMinPayThisMonth = 0;
+        simDebts.forEach(d => {
+          if (d.currentBal > 0 && d.minPay > 0) {
+            mandatoryMinPayThisMonth += Math.min(d.currentBal, d.minPay);
+          }
+        });
+
+        // 2. 前瞻逆推：未來必須預留「固定開銷 + 未來月份 minPay」，計算當月最大安全償債上限
+        let maxAllowedTotal = cashBefore - config.safeBaseline;
+        let tempSimDebts = simDebts.map(d => ({ ...d }));
+        let tempCash = cashBefore;
+
+        for (let future = t + 1; future < n; future++) {
+          const fm = timeline[future];
+          let futureMandatory = 0;
+          tempSimDebts.forEach(td => {
+            if (td.currentBal > 0 && td.minPay > 0) {
+              const p = Math.min(td.currentBal, td.minPay);
+              futureMandatory += p;
+              td.currentBal -= p;
+            }
+          });
+
+          // 未來淨現金流入：收入 - 固定支出 - 未來最低應繳
+          tempCash += (fm.income - fm.fixed - futureMandatory);
+          let allowedDrain = tempCash - config.safeBaseline;
+          if (allowedDrain < maxAllowedTotal) {
+            maxAllowedTotal = allowedDrain;
+          }
+        }
+
+        // 安全上限計算完成
+        const safeCap = Math.max(0, Math.floor(maxAllowedTotal));
+        safeCapArray[t] = safeCap;
+
+        // 3. 嚴格雪球清償分配
+        let paidThisMonth = 0;
+        let isDeficitMonth = false;
+
+        // 判斷當月現金是否足以支付最低應繳且維持防線
+        if (cashBefore - mandatoryMinPayThisMonth < config.safeBaseline) {
+          isDeficitMonth = true;
+          hasSevereDeficit = true;
+        }
+
+        // 步驟 A: 無論如何優先給付本月的 minPay
+        simDebts.forEach(d => {
+          if (d.currentBal > 0 && d.minPay > 0) {
+            let p = Math.min(d.currentBal, d.minPay, Math.max(0, cashBefore - paidThisMonth));
+            d.currentBal -= p;
+            paidThisMonth += p;
+            if (d.currentBal <= 0 && !d.clearedMonth) d.clearedMonth = m.month;
+          }
+        });
+
+        // 步驟 B: 額外雪球攻擊（僅在有安全預算可用，且超出 minPay 時才啟動）
+        let extraSnowballBudget = Math.max(0, safeCap - paidThisMonth);
+
+        // 嚴格按 Rank 依序擊破：Rank 1 清完才能溢出到 Rank 2
+        for (let i = 0; i < simDebts.length; i++) {
+          let d = simDebts[i];
+          if (d.currentBal > 0 && extraSnowballBudget > 0) {
+            let p = Math.min(d.currentBal, extraSnowballBudget);
+            d.currentBal -= p;
+            extraSnowballBudget -= p;
+            paidThisMonth += p;
+            if (d.currentBal <= 0 && !d.clearedMonth) d.clearedMonth = m.month;
+          }
+        }
+
+        actualPaidArray[t] = paidThisMonth;
+        runningCash = cashBefore - paidThisMonth;
+        cashSnapshots[t] = runningCash;
+
+        // 4. 記錄當月底的精準獨立快照（Snapshot）
+        remainingDebtSnapshots[t] = simDebts.reduce((sum, d) => sum + Math.max(0, d.currentBal), 0);
+
+        if (runningCash < minOverallCash) {
+          minOverallCash = runningCash;
+          bottleneckMonth = m.month;
+        }
+
+        // 狀態備註標籤
+        if (runningCash < config.safeBaseline) {
+          monthStatusArray[t] = `<span class="badge pause">破防衛線/缺口</span>`;
+        } else if (extraSnowballBudget === 0 && paidThisMonth > mandatoryMinPayThisMonth) {
+          monthStatusArray[t] = `<span class="badge done">雪球攻堅</span>`;
+        } else if (paidThisMonth === mandatoryMinPayThisMonth && mandatoryMinPayThisMonth > 0) {
+          monthStatusArray[t] = `<span class="badge wait">僅付最低應繳</span>`;
+        } else {
+          monthStatusArray[t] = `<span class="badge wait">防守過冬</span>`;
+        }
+
+        // 統計 11~2 月真實赤字（含 minPay）
+        if (t >= 1 && t <= 4) {
+          totalTroughDeficitWithMinPay += Math.max(0, m.fixed + mandatoryMinPayThisMonth - m.income);
+        }
+      }
+
+      // 三帳戶當月分流指令（以首月 2026/10 為基準）
+      const firstIncome = timeline[0].income;
+      const firstFixed = timeline[0].fixed;
+      const firstRepay = actualPaidArray[0];
+      const firstSafeCap = safeCapArray[0];
+      const postAmt = 15000;
+      const fubonFixed = Math.max(0, firstFixed - postAmt);
+      const fubonTotal = fubonFixed + firstRepay;
+      const ctbcRemaining = config.initSavings + firstIncome - postAmt - fubonTotal;
+
+      document.getElementById('safetyCapBadge').innerText = `前瞻安全上限 NT$ ${firstSafeCap.toLocaleString()} ｜ 實際排程 NT$ ${firstRepay.toLocaleString()}`;
+      document.getElementById('postSuggest').innerText = `NT$ ${postAmt.toLocaleString()}`;
+      document.getElementById('fubonSuggest').innerText = `NT$ ${fubonTotal.toLocaleString()}`;
+      document.getElementById('fubonDetail').innerText = `固定扣繳 NT$ ${fubonFixed.toLocaleString()} + 本月雪球還款 NT$ ${firstRepay.toLocaleString()}`;
+      document.getElementById('ctbcSuggest').innerText = `NT$ ${Math.round(ctbcRemaining).toLocaleString()}`;
+      document.getElementById('ctbcDetail').innerText = `嚴格鎖死：含 15k 底線 + 未來 4 個月赤字儲備（未用滿安全額度之差額自動留存）`;
+
+      // 渲染債務表格
+      const debtTbody = document.getElementById("debtTableBody");
+      debtTbody.innerHTML = "";
+      let totalDebtSum = debts.reduce((sum, d) => sum + d.total, 0);
+
+      debts.forEach((d) => {
+        const sim = simDebts.find(x => x.rank === d.rank);
+        const tr = document.createElement("tr");
+        
+        let statusBadge = sim.clearedMonth 
+          ? `<span class="badge done">預計 ${sim.clearedMonth} 結清</span>` 
+          : `<span class="badge wait">第二階段結餘款</span>`;
+
+        tr.innerHTML = `
+          <td><span class="badge wait">順位 ${d.rank}</span></td>
+          <td><strong>${d.name}</strong></td>
+          <td><input style="width:75px;" type="number" value="${d.total}" onchange="updateDebt(${d.rank}, 'total', this.value)"></td>
+          <td><input style="width:65px;" type="number" value="${d.minPay}" onchange="updateDebt(${d.rank}, 'minPay', this.value)"></td>
+          <td style="color:#38bdf8; font-weight:bold;">NT$ ${(d.total - sim.currentBal).toLocaleString()}</td>
+          <td>${sim.clearedMonth ? sim.clearedMonth : '持續攤還'}</td>
+          <td>${statusBadge}</td>
+        `;
+        debtTbody.appendChild(tr);
+      });
+
+      // 渲染現金流表格
+      const timelineTbody = document.getElementById("timelineTableBody");
+      timelineTbody.innerHTML = "";
+
+      timeline.forEach((m, idx) => {
+        const tr = document.createElement("tr");
+        const isBottleneck = m.month === bottleneckMonth;
+        const noteBadge = isBottleneck 
+          ? `<span class="badge bottleneck">⚠️ 全期瓶頸月</span>` 
+          : monthStatusArray[idx];
+
+        const cashVal = cashSnapshots[idx];
+        const cashColor = cashVal < config.safeBaseline ? 'var(--danger)' : 'var(--success)';
+
+        tr.innerHTML = `
+          <td><strong>${m.month}</strong></td>
+          <td><input style="width:75px;" type="number" value="${m.income}" onchange="updateTimeline(${idx}, 'income', this.value)"></td>
+          <td><input style="width:65px;" type="number" value="${m.fixed}" onchange="updateTimeline(${idx}, 'fixed', this.value)"></td>
+          <td style="color:#94a3b8;">NT$ ${safeCapArray[idx].toLocaleString()}</td>
+          <td style="color:#818cf8; font-weight:bold;">NT$ ${actualPaidArray[idx].toLocaleString()}</td>
+          <td style="color:${cashColor}; font-weight:800;">NT$ ${Math.round(cashVal).toLocaleString()}</td>
+          <td style="color:#f8fafc; font-weight:600;">NT$ ${Math.round(remainingDebtSnapshots[idx]).toLocaleString()}</td>
+          <td>${noteBadge}</td>
+        `;
+        timelineTbody.appendChild(tr);
+      });
+
+      document.getElementById('initialTotalDebtDisplay').innerText = `NT$ ${totalDebtSum.toLocaleString()}`;
+      const finalRemainingDebt = remainingDebtSnapshots[n - 1];
+      document.getElementById('paidTotalDisplay').innerText = `NT$ ${(totalDebtSum - finalRemainingDebt).toLocaleString()}`;
+      document.getElementById('troughDeficitDisplay').innerText = `NT$ ${totalTroughDeficitWithMinPay.toLocaleString()}`;
+
+      // 智慧顧問即時診斷
+      const ab = document.getElementById("alertBox");
+      if (minOverallCash < config.safeBaseline) {
+        ab.className = "alert-banner danger";
+        ab.innerHTML = `🚨 <strong>【穿透預警】</strong> 最低水位出現在 <strong>${bottleneckMonth}</strong>（預估僅剩 NT$ ${Math.round(minOverallCash).toLocaleString()}，跌破 15k 底線）！代表未來月份之「固定開銷＋最低應繳」已超過現有承受力，需重新協商 minPay。`;
+      } else {
+        ab.className = "alert-banner safe";
+        ab.innerHTML = `🛡️ <strong>【前瞻防衛成立】</strong> 系統已全額留存低谷期赤字 <strong>NT$ ${totalTroughDeficitWithMinPay.toLocaleString()}</strong>（含生活與必繳 minPay）。全期最低現金瓶頸出現在 <strong>${bottleneckMonth}</strong>（穩守安全線 <strong>NT$ ${Math.round(minOverallCash).toLocaleString()}</strong>）。10 月已精確執行雪球排程，差額安全回流中信！`;
+      }
+    }
+
+    runEngineV4();
+  </script>
+</body>
+</html>
