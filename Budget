@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>智慧債務排程與三帳戶防禦系統</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --primary: #2563eb;
+      --danger: #ef4444;
+      --warning: #d97706;
+      --success: #16a34a;
+      --text: #1e293b;
+      --muted: #64748b;
+      --border: #e2e8f0;
+    }
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); margin: 0; padding: 16px; -webkit-text-size-adjust: 100%; }
+    .header { margin-bottom: 16px; }
+    .header h1 { margin: 0 0 6px 0; font-size: 20px; font-weight: 700; }
+    .header p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
+
+    /* 三帳戶水庫卡片 */
+    .accounts-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    @media (min-width: 600px) {
+      .accounts-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    .account-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    .account-card h3 { margin: 0 0 4px 0; font-size: 15px; }
+    .account-card .role { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+    .account-card .balance { font-size: 22px; font-weight: 800; }
+    .account-card.ctbc .balance { color: #0284c7; }
+    .account-card.fubon .balance { color: #4f46e5; }
+    .account-card.post .balance { color: #059669; }
+
+    /* 主配置欄位 */
+    .main-layout { display: flex; flex-direction: column; gap: 16px; }
+
+    .panel {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    .panel h3 { margin: 0 0 12px 0; font-size: 15px; display: flex; justify-content: space-between; align-items: center; }
+
+    .table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 320px; }
+    th, td { padding: 8px 4px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+    
+    .danger-val { color: var(--danger); font-weight: bold; }
+    .warning-val { color: var(--warning); font-weight: bold; }
+    .safe-val { color: var(--success); font-weight: bold; }
+    .tag-cleared { background: #dcfce7; color: #15803d; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+    .tag-pending { background: #fef3c7; color: #b45309; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+
+    .btn-action {
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      padding: 4px 6px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .btn-action:active { background: #e2e8f0; }
+
+    .alert-box {
+      border-left: 4px solid var(--primary);
+      background: #eff6ff;
+      padding: 12px;
+      border-radius: 0 8px 8px 0;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .alert-box.danger { background: #fef2f2; border-left-color: var(--danger); color: #991b1b; }
+    .alert-box.warning { background: #fffbeb; border-left-color: var(--warning); color: #92400e; }
+
+    .rule-item { margin-bottom: 8px; font-size: 12px; line-height: 1.4; color: var(--text); }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>智慧債務排程與三帳戶防禦系統</h1>
+    <p>依據「卡費優先、分期履約、小額結清、守護 15k 水位」自動推算現金流。</p>
+  </div>
+
+  <!-- 三帳戶水庫 -->
+  <div class="accounts-grid">
+    <div class="account-card ctbc">
+      <h3>中國信託</h3>
+      <div class="role">防禦主水庫（鎖死不動，按月撥款）</div>
+      <div class="balance" id="uiCtbc">NT$ 0</div>
+      <small style="color:var(--muted)">存放生存大款與生活補助</small>
+    </div>
+    <div class="account-card fubon">
+      <h3>富邦銀行</h3>
+      <div class="role">扣繳中樞（卡費、固定扣款、還款）</div>
+      <div class="balance" id="uiFubon">NT$ 0</div>
+      <small style="color:var(--muted)">手機 1k + 健身 0.9k + 指定還款</small>
+    </div>
+    <div class="account-card post">
+      <h3>郵局帳戶</h3>
+      <div class="role">日常生活費（定額提領煞車）</div>
+      <div class="balance" id="uiPost">NT$ 15,000</div>
+      <small style="color:var(--muted)">每月生活費煞車機制</small>
+    </div>
+  </div>
+
+  <div class="main-layout">
+    <!-- 風險監控提醒 -->
+    <div id="statusAlert" class="alert-box">
+      <strong>系統初始化中...</strong>
+    </div>
+
+    <!-- 動態現金流表格 -->
+    <div class="panel">
+      <h3>
+        動態月度現金流
+        <button class="btn-action" onclick="resetSim()">重置</button>
+      </h3>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>月份</th>
+              <th>進帳</th>
+              <th>開銷</th>
+              <th>還款</th>
+              <th>超支</th>
+              <th>預估結餘</th>
+            </tr>
+          </thead>
+          <tbody id="timelineTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 債務清冊 -->
+    <div class="panel">
+      <h3>債務清冊與清償狀態 (共 134.59k)</h3>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>對象</th>
+              <th>欠款</th>
+              <th>已還</th>
+              <th>剩餘</th>
+              <th>排程狀態</th>
+            </tr>
+          </thead>
+          <tbody id="debtTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 運作規則說明 -->
+    <div class="panel">
+      <h3>核心執行原則</h3>
+      <div class="rule-item"><strong>1. 信用優先：</strong>10 月卡費 10k 全額結清，杜絕高息循環。</div>
+      <div class="rule-item"><strong>2. 誠信履約：</strong>益 10～12 月每月固定還 4k，建立信任。</div>
+      <div class="rule-item"><strong>3. 快速清障：</strong>小額名單（地 2k、Lung 4.09k、郎 5k、ㄐㄧㄝ 5k）首波全數結清消除。</div>
+      <div class="rule-item"><strong>4. 安全底線：</strong>2027 年 2 月最低水位嚴防 15k，在此之前嚴禁單筆投入 ETF。</div>
+    </div>
+  </div>
+
+  <script>
+    const initialDebts = [
+      { id: "card", name: "卡費", total: 10, paid: 0 },
+      { id: "yi", name: "益", total: 40, paid: 0 },
+      { id: "di", name: "地", total: 2, paid: 0 },
+      { id: "lung", name: "Lung", total: 4.09, paid: 0 },
+      { id: "lang", name: "郎", total: 5, paid: 0 },
+      { id: "jie", name: "ㄐㄧㄝ", total: 5, paid: 0 },
+      { id: "niu", name: "妞", total: 10.5, paid: 0 },
+      { id: "zhi", name: "ㄓˋ", total: 6, paid: 0 },
+      { id: "kuang", name: "匡", total: 40, paid: 0 }
+    ];
+
+    const baseTimeline = [
+      { month: "2026/10", income: 124, fixed: 16.9, extra: 0, debtPaid: 34 },
+      { month: "2026/11", income: 4, fixed: 16.9, extra: 0, debtPaid: 4 },
+      { month: "2026/12", income: 4, fixed: 28.9, extra: 0, debtPaid: 4 },
+      { month: "2027/01", income: 9, fixed: 16.9, extra: 0, debtPaid: 0 },
+      { month: "2027/02", income: 10, fixed: 16.9, extra: 0, debtPaid: 0 },
+      { month: "2027/03", income: 124, fixed: 16.9, extra: 0, debtPaid: 20 }
+    ];
+
+    let currentTimeline = JSON.parse(JSON.stringify(baseTimeline));
+    let debts = JSON.parse(JSON.stringify(initialDebts));
+
+    function payDebt(id, amt) {
+      const d = debts.find(x => x.id === id);
+      if (d) d.paid = Math.round((d.paid + amt) * 100) / 100;
+    }
+
+    function autoPlan() {
+      debts.forEach(d => d.paid = 0);
+
+      payDebt("card", 10);
+      payDebt("yi", 4);
+      payDebt("di", 2);
+      payDebt("lung", 4.09);
+      payDebt("lang", 5);
+      payDebt("jie", 5);
+      payDebt("niu", 3.91);
+
+      payDebt("yi", 4);
+      payDebt("yi", 4);
+
+      payDebt("niu", 6.59);
+      payDebt("zhi", 6);
+      payDebt("yi", 7.41);
+
+      let running = 0;
+      let minBal = 999;
+      let minM = "";
+
+      const res = currentTimeline.map((item, idx) => {
+        const net = item.income - item.fixed - item.debtPaid - item.extra;
+        running = Math.round((running + net) * 100) / 100;
+        if (running < minBal) {
+          minBal = running;
+          minM = item.month;
+        }
+        return { ...item, endBal: running };
+      });
+
+      render(res, minBal, minM);
+    }
+
+    function addExtra(idx, amt) {
+      currentTimeline[idx].extra = Math.round((currentTimeline[idx].extra + amt) * 10) / 10;
+      autoPlan();
+    }
+
+    function resetSim() {
+      currentTimeline = JSON.parse(JSON.stringify(baseTimeline));
+      autoPlan();
+    }
+
+    function render(res, minBal, minM) {
+      const tb = document.getElementById("timelineTbody");
+      tb.innerHTML = "";
+      res.forEach((r, idx) => {
+        const cls = r.endBal < 15 ? "danger-val" : (r.endBal < 25 ? "warning-val" : "safe-val");
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><strong>${r.month}</strong></td>
+          <td>+${r.income}</td>
+          <td>-${r.fixed}</td>
+          <td style="color:#4f46e5;font-weight:600;">-${r.debtPaid}</td>
+          <td>
+            ${r.extra}
+            <button class="btn-action" onclick="addExtra(${idx}, 1)">+1</button>
+            <button class="btn-action" onclick="addExtra(${idx}, -1)">-1</button>
+          </td>
+          <td class="${cls}">${r.endBal.toFixed(1)}k</td>
+        `;
+        tb.appendChild(tr);
+      });
+
+      const db = document.getElementById("debtTbody");
+      db.innerHTML = "";
+      debts.forEach(d => {
+        const rem = Math.round((d.total - d.paid) * 100) / 100;
+        const done = rem <= 0;
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td><strong>${d.name}</strong></td>
+          <td>${d.total}k</td>
+          <td>${d.paid}k</td>
+          <td>${rem}k</td>
+          <td><span class="${done ? 'tag-cleared' : 'tag-pending'}">${done ? '已結清' : '排程中'}</span></td>
+        `;
+        db.appendChild(tr);
+      });
+
+      const oct = res[0];
+      document.getElementById("uiCtbc").innerText = "NT$ " + ((oct.endBal * 1000) - 15000).toLocaleString();
+      document.getElementById("uiFubon").innerText = "NT$ 50,900";
+
+      const ab = document.getElementById("statusAlert");
+      if (minBal < 0) {
+        ab.className = "alert-box danger";
+        ab.innerHTML = `<strong>【嚴重警報：資金斷炊】</strong><br>${minM} 透支至 <strong>${minBal.toFixed(1)}k</strong>！請立刻取消超支，延後後續非必要還款。`;
+      } else if (minBal < 15) {
+        ab.className = "alert-box warning";
+        ab.innerHTML = `<strong>【防禦警戒：水位過低】</strong><br>${minM} 最低存量僅剩 <strong>${minBal.toFixed(1)}k</strong>。請嚴禁單筆購買 ETF 與衝動消費。`;
+      } else {
+        ab.className = "alert-box";
+        ab.innerHTML = `<strong>【系統正常：防禦線穩固】</strong><br>全期最低水位出現在 <strong>${minM}</strong>（保有 <strong>${minBal.toFixed(1)}k</strong>）。自動排程穩定運作中。`;
+      }
+    }
+
+    autoPlan();
+  </script>
+</body>
+</html>
